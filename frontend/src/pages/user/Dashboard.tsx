@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { authClient, useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,8 +20,8 @@ export default function UserDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -61,16 +61,15 @@ export default function UserDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Getting Started</CardTitle>
+            <CardTitle>Start Practicing</CardTitle>
             <CardDescription>
-              You're signed in and ready to go
+              Browse coding problems and sharpen your DSA skills
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Your account has been set up successfully. Start exploring the
-              features available to you.
-            </p>
+            <Link to="/problems">
+              <Button>Browse Problems</Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
