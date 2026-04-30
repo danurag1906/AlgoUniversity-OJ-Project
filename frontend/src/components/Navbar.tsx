@@ -17,14 +17,18 @@ export default function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className=" mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">AJ</span>
+              <span className="text-primary-foreground font-bold text-sm">
+                AJ
+              </span>
             </div>
-            <span className="font-semibold text-lg hidden sm:inline">AlgoJudge</span>
+            <span className="font-semibold text-lg hidden sm:inline">
+              AlgoJudge
+            </span>
           </Link>
 
           {/* Navigation Links */}
@@ -73,9 +77,14 @@ export default function Navbar() {
                       className="w-7 h-7 rounded-full"
                     />
                   )}
-                  <span className="text-sm font-medium">{session.user.name}</span>
+                  <span className="text-sm font-medium">
+                    {session.user.name}
+                  </span>
                   {session.user.role === "admin" && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] px-1.5 py-0"
+                    >
                       Admin
                     </Badge>
                   )}

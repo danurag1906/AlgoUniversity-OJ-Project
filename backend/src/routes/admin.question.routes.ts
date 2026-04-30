@@ -7,11 +7,15 @@ import Question from "../models/Question.js";
 const router = Router();
 
 // Configure multer for zip file uploads
+// - Uses memory storage so we can directly send the buffer to S3 (no local disk writes).
+// - Size limit prevents very large uploads.
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
   fileFilter: (_req, file, cb) => {
     // Accept only zip files
+    // Note: some browsers use `application/octet-stream` for unknown types,
+    // so we also allow `.zip` by filename suffix.
     const allowedMimeTypes = [
       "application/zip",
       "application/x-zip-compressed",
@@ -29,6 +33,10 @@ const upload = multer({
 });
 
 // POST /api/admin/questions — Create a new question
+// Example:
+// curl -X POST http://localhost:3001/api/admin/questions \
+//   -H "content-type: application/json" \
+//   --data '{"title":"Two Sum","description":"...","difficulty":"Easy","tags":["Array"],"sampleInput":"...","sampleOutput":"..."}'
 router.post("/", async (req: Request, res: Response) => {
   try {
     const {
@@ -48,6 +56,7 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
+    // Persist the question. `createdBy` uses the authenticated admin user's id.
     const question = await Question.create({
       title,
       description,
@@ -67,6 +76,7 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // PUT /api/admin/questions/:id — Update a question
+// Partial update: only fields present in the request body are written.
 router.put("/:id", async (req: Request, res: Response) => {
   try {
     const {
@@ -82,6 +92,7 @@ router.put("/:id", async (req: Request, res: Response) => {
     const question = await Question.findByIdAndUpdate(
       req.params.id,
       {
+        // Conditional spreads avoid overwriting fields with `undefined`.
         ...(title && { title }),
         ...(description && { description }),
         ...(difficulty && { difficulty }),
@@ -126,6 +137,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
           })
         );
       } catch (s3Error) {
+        // S3 deletion is best-effort. If it fails, still delete the DB record.
         console.error(
           "Failed to delete S3 test cases, continuing with DB deletion:",
           s3Error
@@ -142,6 +154,11 @@ router.delete("/:id", async (req: Request, res: Response) => {
 });
 
 // POST /api/admin/questions/:id/testcases — Upload test cases zip to S3
+// Expected zip file format (by convention, used when grading submissions):
+// - input1.txt + output1.txt
+// - input2.txt + output2.txt
+// - ...
+// Folders inside the zip are allowed; pairing is based on filename basename.
 router.post(
   "/:id/testcases",
   upload.single("testcases"),
@@ -163,6 +180,7 @@ router.post(
 
       const s3 = getS3Client();
       const bucket = getS3Bucket();
+      // Deterministic key structure: groups testcases by question id.
       const key = `testcases/${question._id}/${req.file.originalname}`;
 
       // Delete old test case file from S3 if it exists

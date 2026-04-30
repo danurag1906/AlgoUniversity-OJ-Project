@@ -5,15 +5,37 @@ import os from "os";
 import crypto from "crypto";
 import util from "util";
 
+/**
+ * Promisified `exec` to make compilation steps `await`-able.
+ * - Used for C++ compilation (`g++` / `c++`) and Java compilation (`javac`).
+ */
 const execAsync = util.promisify(exec);
 
+// Hard per-testcase timeout.
+// If a program runs longer than this (infinite loop, heavy computation),
+// we kill the process and mark the testcase as TLE.
 const TIME_LIMIT_MS = 5_000; // 5 seconds per testcase
 
+/**
+ * Input for a single testcase.
+ * - `input`: what will be written to stdin of the user program.
+ * - `expectedOutput`: what we compare normalized stdout against.
+ */
 export interface TestCaseInput {
   input: string;
   expectedOutput: string;
 }
 
+/**
+ * Output/diagnostics for a single testcase.
+ *
+ * `status` explains the verdict:
+ * - Accepted: output matches after normalization
+ * - Wrong Answer: output differs
+ * - Runtime Error: non-zero exit code, spawn error, etc.
+ * - Time Limit Exceeded: process killed after timeout
+ * - Compilation Error: compilation failed (returned at the overall level)
+ */
 export interface TestCaseResult {
   testCase: number;
   passed: boolean;
@@ -24,6 +46,17 @@ export interface TestCaseResult {
   error?: string;
 }
 
+/**
+ * Aggregated execution result.
+ *
+ * `overallStatus` is a roll-up across testcases:
+ * - Accepted if all passed
+ * - else TLE if any TLE
+ * - else Runtime Error if any RE
+ * - else Wrong Answer
+ *
+ * `compilationError` is present only when compilation fails.
+ */
 export interface ExecutionResult {
   overallStatus:
     | "Accepted"
@@ -37,6 +70,16 @@ export interface ExecutionResult {
   totalTestCases: number;
 }
 
+/**
+ * Creates an isolated temporary directory for a single execution request.
+ *
+ * Why:
+ * - Prevents file collisions between concurrent runs.
+ * - Keeps compiled artifacts + source files out of the repository.
+ *
+ * Promise behavior:
+ * - `fs.mkdir` is async; caller awaits to ensure the directory exists before writing files.
+ */
 async function createTempDir(): Promise<string> {
   const dirName = `oj-exec-${crypto.randomUUID()}`;
   const dirPath = path.join(os.tmpdir(), dirName);
@@ -44,6 +87,11 @@ async function createTempDir(): Promise<string> {
   return dirPath;
 }
 
+/**
+ * Best-effort cleanup.
+ * - Uses `force: true` to avoid throwing on missing files.
+ * - Errors are intentionally swallowed so cleanup doesn't mask judge results.
+ */
 async function cleanupTempDir(dirPath: string): Promise<void> {
   try {
     await fs.rm(dirPath, { recursive: true, force: true });
@@ -52,6 +100,16 @@ async function cleanupTempDir(dirPath: string): Promise<void> {
   }
 }
 
+/**
+ * Normalizes output for comparison:
+ * - trims trailing whitespace on each line
+ * - trims leading/trailing whitespace overall
+ *
+ * This helps avoid marking answers wrong due to a trailing newline.
+ *
+ * Example:
+ * - "5\n" and "5" both normalize to "5"
+ */
 function normalizeOutput(output: string): string {
   if (!output) return "";
   return output
@@ -61,6 +119,24 @@ function normalizeOutput(output: string): string {
     .trim();
 }
 
+/**
+ * Writes code to disk and returns a command to execute it.
+ *
+ * For compiled languages we:
+ * - write the source file
+ * - compile using `execAsync` (so we can `await` compilation)
+ * - return the path to the produced binary/class runner
+ *
+ * Returned shape:
+ * - `runCommand` and `args` are passed to `spawn(runCommand, args)`
+ * - `compilationError` is returned instead of throwing so the caller can return a
+ *   structured "Compilation Error" response.
+ *
+ * Example:
+ * - C++: produces `solution` binary inside `tmpDir`.
+ * - Java: compiles `Main.java` then runs `java -cp <tmpDir> Main`.
+ * - Python: runs `python3 <tmpDir>/solution.py` (no compilation).
+ */
 async function prepareCode(
   tmpDir: string,
   language: string,
@@ -71,6 +147,7 @@ async function prepareCode(
     const binaryFile = path.join(tmpDir, "solution");
     await fs.writeFile(sourceFile, code);
 
+    // On macOS CI/dev environments, `c++` is commonly available. Elsewhere use `g++`.
     const compiler = os.platform() === "darwin" ? "c++" : "g++";
     try {
       await execAsync(`"${compiler}" -o "${binaryFile}" "${sourceFile}" -std=c++17 -O2`, {
@@ -112,6 +189,26 @@ async function prepareCode(
   return { runCommand: "", args: [], compilationError: "Unsupported language" };
 }
 
+/**
+ * Runs exactly one testcase and resolves with a `TestCaseResult`.
+ *
+ * Key point: this function returns a Promise that resolves from event callbacks.
+ *
+ * Events involved:
+ * - `"data"` on `stdout`/`stderr` to collect output incrementally.
+ * - `"close"` when the process exits (provides exit code + signal).
+ * - `"error"` when spawn fails.
+ *
+ * Timeout behavior:
+ * - A `setTimeout` kills the process after `TIME_LIMIT_MS`.
+ * - The promise resolves immediately with TLE (so the caller can continue).
+ *
+ * Example (conceptual):
+ * - Input: "2 3"
+ * - Program prints "5"
+ * - Expected output: "5"
+ * => normalized output matches => Accepted.
+ */
 function runSingleTestCaseAsync(
   runCommand: string,
   args: string[],
@@ -167,6 +264,7 @@ function runSingleTestCaseAsync(
 
       if (code !== 0 && code !== null) {
         result.status = "Runtime Error";
+        // Keep errors bounded so responses don't become huge.
         result.error = stderr.slice(0, 800) || `Process exited with code ${code}`;
         resolve(result);
         return;
@@ -205,6 +303,22 @@ function runSingleTestCaseAsync(
 }
 
 // Main execution function using totally non-blocking local OS child processes
+/**
+ * Executes user code against one or more testcases and returns a structured verdict.
+ *
+ * This is called by:
+ * - `POST /api/run` (single testcase: sample)
+ * - `POST /api/submissions` (all testcases: S3 zip or sample fallback)
+ *
+ * Important runtime constraints:
+ * - This runs code on the server machine via child processes.
+ * - Rate limiting is applied at the router mount to reduce abuse.
+ *
+ * Promise/async structure:
+ * - Creates a temp dir, then `try/finally` to guarantee cleanup.
+ * - Compilation returns a "Compilation Error" result instead of throwing.
+ * - Testcases are executed sequentially (`await` in a loop) to keep resource usage predictable.
+ */
 export async function executeCode(
   language: string,
   code: string,
@@ -264,6 +378,7 @@ export async function executeCode(
       totalTestCases: testCases.length,
     };
   } finally {
+    // Always clean up temp directory even if compilation/execution throws unexpectedly.
     await cleanupTempDir(tmpDir);
   }
 }
