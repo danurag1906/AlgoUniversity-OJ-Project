@@ -74,12 +74,15 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in your env file}
 
       # Optional: OAuth and AWS values (set only if you use them)
-      # GOOGLE_CLIENT_ID: ""
-      # GOOGLE_CLIENT_SECRET: ""
-      # AWS_ACCESS_KEY_ID: ""
-      # AWS_SECRET_ACCESS_KEY: ""
-      # AWS_REGION: ap-south-1
-      # AWS_S3_BUCKET: ""
+      # Google OAuth (required only if you use "Login with Google")
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+
+      # AWS S3 (required only if you use S3 features)
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
     restart: unless-stopped
 
     # Basic safety limits (helps against accidental resource overuse).
