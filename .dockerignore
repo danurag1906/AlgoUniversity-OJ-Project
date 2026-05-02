@@ -1,0 +1,10 @@
+# Root dockerignore (affects builds that use repo root as build context)
+.git
+.DS_Store
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

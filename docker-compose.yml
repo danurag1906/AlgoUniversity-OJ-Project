@@ -1,0 +1,87 @@
+# Docker Compose file to run the whole app stack.
+# Run locally:
+#   docker compose up --build
+#
+# What you'll get:
+# - nginx (reverse proxy): http://localhost:8080
+# - backend API: internal only (nginx routes /api -> backend)
+# - frontend: internal only (nginx routes / -> frontend)
+# - MongoDB: external (MongoDB Atlas), not a container here
+#
+# Beginner tip:
+# - "services" are containers
+# - "volumes" store persistent data (MongoDB data survives restarts)
+
+services:
+  # Reverse proxy (single public entrypoint)
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: algo-oj-nginx
+    ports:
+      # We map container port 80 to host port 8080 for local dev.
+      # On a VPS you typically use "80:80" and "443:443" (HTTPS).
+      - "8080:80"
+    volumes:
+      # Mount our custom reverse-proxy config into the container.
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+  # Frontend static site (built by Vite, served by Nginx in the image)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # This controls where the frontend sends API requests.
+        # For this stack, nginx is the public entrypoint, so the frontend should call nginx.
+        # The backend is reachable at /api via nginx routing.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+    container_name: algo-oj-frontend
+    # No ports exposed to host; nginx service is the public entry.
+    restart: unless-stopped
+
+  # Backend API (Express)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: algo-oj-backend
+    environment:
+      # MongoDB Atlas (cloud) connection string.
+      #
+      # This MUST start with:
+      # - mongodb://
+      #   or
+      # - mongodb+srv://
+      #
+      # We read it from your local env file, so secrets aren't hardcoded here.
+      # See `.env.docker.local.example` for the format.
+      MONGODB_URI: ${MONGODB_URI:?Set MONGODB_URI in your env file}
+
+      # The backend defaults to 3001; we set it explicitly for clarity.
+      PORT: "3001"
+
+      # Update these for your environment.
+      # For local dev via reverse proxy at http://localhost:8080:
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:8080}
+
+      # Secrets should NOT be committed. For now you can set a local value.
+      # On a VPS, move secrets to an `.env` file and use `env_file:`.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in your env file}
+
+      # Optional: OAuth and AWS values (set only if you use them)
+      # GOOGLE_CLIENT_ID: ""
+      # GOOGLE_CLIENT_SECRET: ""
+      # AWS_ACCESS_KEY_ID: ""
+      # AWS_SECRET_ACCESS_KEY: ""
+      # AWS_REGION: ap-south-1
+      # AWS_S3_BUCKET: ""
+    restart: unless-stopped
+
+    # Basic safety limits (helps against accidental resource overuse).
+    # For a real online judge, you need stronger isolation (see docker/README-devops.md).
+    pids_limit: 256
