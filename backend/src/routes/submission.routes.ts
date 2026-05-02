@@ -13,6 +13,19 @@ const router = Router();
 router.use(requireAuth);
 
 // Helper: Download test cases zip from S3 and extract input/output pairs
+/**
+ * Downloads a testcase `.zip` from S3 and extracts test cases by filename convention.
+ *
+ * Expected files (any folder nesting is allowed):
+ * - `input1.txt` and `output1.txt`
+ * - `input2.txt` and `output2.txt`
+ * - ...
+ *
+ * Promise flow:
+ * - `await s3.send(GetObjectCommand)` returns a response with a streaming Body.
+ * - `for await (const chunk of bodyStream)` consumes the stream into a Buffer.
+ * - `adm-zip` parses the in-memory zip.
+ */
 async function getTestCasesFromS3(s3Key: string): Promise<TestCaseInput[]> {
   const s3 = getS3Client();
   const bucket = getS3Bucket();
@@ -77,6 +90,10 @@ async function getTestCasesFromS3(s3Key: string): Promise<TestCaseInput[]> {
 }
 
 // POST /api/submissions — Submit code, execute against ALL test cases, save result
+// Example:
+// curl -X POST http://localhost:3001/api/submissions \
+//   -H "content-type: application/json" \
+//   --data '{"questionId":"...","language":"cpp","code":"#include <bits/stdc++.h>\\nint main(){...}"}'
 router.post("/", async (req: Request, res: Response) => {
   try {
     const { questionId, language, code } = req.body;
@@ -129,6 +146,7 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     // Execute the code against all test cases
+    // This is CPU-bound and uses OS processes. It's rate-limited at the router mount.
     const executionResult = await executeCode(language, code, testCases);
 
     // Save the submission with the result
@@ -151,6 +169,8 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // GET /api/submissions/me — Get current user's submissions
+// Example:
+// - `curl "http://localhost:3001/api/submissions/me?questionId=<QUESTION_ID>"`
 router.get("/me", async (req: Request, res: Response) => {
   try {
     const { questionId } = req.query;

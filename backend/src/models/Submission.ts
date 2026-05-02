@@ -1,5 +1,14 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+/**
+ * Submission schema (a persisted judge run).
+ *
+ * This is created by `POST /api/submissions` after code is executed.
+ * It stores:
+ * - the user's code + language
+ * - which question it was for
+ * - the rolled-up verdict (`status`)
+ */
 export interface ISubmission extends Document {
   questionId: mongoose.Types.ObjectId;
   userId: string;

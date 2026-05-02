@@ -1,5 +1,14 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+/**
+ * Question schema (an OJ problem).
+ *
+ * Notes:
+ * - `sampleInput` / `sampleOutput` are used by `/api/run` and as a fallback testcase
+ *   when S3 testcases are missing/unavailable.
+ * - `s3TestCaseKey` / `testCaseFileName` point to a `.zip` uploaded by admins.
+ * - `createdBy` records the admin user id that created the question.
+ */
 export interface IQuestion extends Document {
   title: string;
   description: string;
@@ -66,6 +75,7 @@ const questionSchema = new Schema<IQuestion>(
 );
 
 // Index for efficient tag-based and difficulty-based filtering
+// Used by `GET /api/questions?tags=...&difficulty=...`.
 questionSchema.index({ tags: 1 });
 questionSchema.index({ difficulty: 1 });
 

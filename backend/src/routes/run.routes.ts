@@ -9,6 +9,10 @@ const router = Router();
 router.use(requireAuth);
 
 // POST /api/run — Run code against sample test case only
+// Example:
+// curl -X POST http://localhost:3001/api/run \
+//   -H "content-type: application/json" \
+//   --data '{"questionId":"...","language":"python","code":"print(input())"}'
 router.post("/", async (req: Request, res: Response) => {
   try {
     const { questionId, language, code } = req.body;
@@ -49,6 +53,7 @@ router.post("/", async (req: Request, res: Response) => {
     ];
 
     // Execute the code
+    // This runs code locally using OS child processes (see `src/services/codeExecutor.ts`).
     const result = await executeCode(language, code, testCases);
 
     res.json({ result });

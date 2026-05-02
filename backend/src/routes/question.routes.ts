@@ -3,6 +3,14 @@ import Question from "../models/Question.js";
 
 const router = Router();
 
+/**
+ * Public questions routes (no auth required).
+ *
+ * API examples:
+ * - List: `curl "http://localhost:3001/api/questions?difficulty=Easy&tags=DP,Graph&search=two"`
+ * - Detail: `curl http://localhost:3001/api/questions/<QUESTION_ID>`
+ */
+
 // GET /api/questions — List all questions (public, supports filtering)
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -22,6 +30,7 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     if (search && typeof search === "string") {
+      // Case-insensitive title match.
       filter.title = { $regex: search, $options: "i" };
     }
 
@@ -39,6 +48,7 @@ router.get("/", async (req: Request, res: Response) => {
 // GET /api/questions/:id — Single question detail (public)
 router.get("/:id", async (req: Request, res: Response) => {
   try {
+    // Hide internal S3 key so clients can't see storage implementation details.
     const question = await Question.findById(req.params.id).select(
       "-s3TestCaseKey"
     );

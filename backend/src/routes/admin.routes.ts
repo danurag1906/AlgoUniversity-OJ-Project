@@ -7,11 +7,22 @@ import Submission from "../models/Submission.js";
 
 const router = Router();
 
+/**
+ * Admin routes.
+ *
+ * Guards:
+ * - `requireAuth` ensures a valid session
+ * - `requireRole("admin")` ensures the user has admin privileges
+ *
+ * Example:
+ * - `GET /api/admin/stats` to view totals.
+ */
 router.use(requireAuth);
 router.use(requireRole("admin"));
 
 router.get("/stats", async (_req, res) => {
   try {
+    // Aggregate stats using fast count queries.
     const totalQuestions = await Question.countDocuments();
     const totalSubmissions = await Submission.countDocuments();
     res.json({
@@ -22,6 +33,7 @@ router.get("/stats", async (_req, res) => {
       },
     });
   } catch {
+    // Avoid leaking internal errors for a stats endpoint.
     res.json({
       message: "Admin stats endpoint",
       stats: {
@@ -33,6 +45,7 @@ router.get("/stats", async (_req, res) => {
 });
 
 router.get("/me", (req, res) => {
+  // Useful for frontend admin dashboards to confirm current user & role.
   res.json({ user: req.user });
 });
 
