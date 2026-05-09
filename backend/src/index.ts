@@ -9,6 +9,7 @@ import userRoutes from "./routes/user.routes.js";
 import questionRoutes from "./routes/question.routes.js";
 import submissionRoutes from "./routes/submission.routes.js";
 import runRoutes from "./routes/run.routes.js";
+import chatRoutes from "./routes/chat.routes.js";
 import rateLimit from "express-rate-limit";
 
 /**
@@ -82,5 +83,6 @@ app.use("/api/questions", questionRoutes);
 // Execution endpoints also get the stricter limiter.
 app.use("/api/submissions", executeLimiter, submissionRoutes);
 app.use("/api/run", executeLimiter, runRoutes);
+app.use("/api/chat", apiLimiter, chatRoutes);
 
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

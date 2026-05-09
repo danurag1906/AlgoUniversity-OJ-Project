@@ -10,6 +10,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1030.0",
     "@aws-sdk/s3-request-presigner": "^3.1030.0",
+    "@langchain/core": "^1.1.45",
+    "@langchain/google-genai": "^2.1.30",
     "adm-zip": "^0.5.17",
     "better-auth": "^1.2.7",
     "cors": "^2.8.5",
