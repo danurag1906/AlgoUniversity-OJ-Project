@@ -24,6 +24,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import ChatPanel from "@/components/ChatPanel";
 
 const LANGUAGE_MAP: Record<
   string,
@@ -242,7 +243,7 @@ export default function ProblemDetail() {
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="description">Description</TabsTrigger>
                 <TabsTrigger value="submissions">
                   Submissions{" "}
@@ -251,6 +252,9 @@ export default function ProblemDetail() {
                       ({submissions.length})
                     </span>
                   )}
+                </TabsTrigger>
+                <TabsTrigger value="ai-hints" className="gap-1.5">
+                  <span className="text-yellow-500">💡</span> AI Hints
                 </TabsTrigger>
               </TabsList>
 
@@ -360,6 +364,10 @@ export default function ProblemDetail() {
                     ))}
                   </div>
                 )}
+              </TabsContent>
+
+              <TabsContent value="ai-hints" className="mt-4 h-[500px]">
+                <ChatPanel questionId={question._id} language={language} />
               </TabsContent>
             </Tabs>
           </div>
