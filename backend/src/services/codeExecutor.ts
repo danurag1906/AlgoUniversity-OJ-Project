@@ -82,7 +82,10 @@ export interface ExecutionResult {
  */
 async function createTempDir(): Promise<string> {
   const dirName = `oj-exec-${crypto.randomUUID()}`;
-  const dirPath = path.join(os.tmpdir(), dirName);
+  // Use a local "tmp" folder inside the backend directory.
+  // os.tmpdir() on Mac returns /var/folders/... which Docker Desktop often fails to mount correctly.
+  const baseTmpDir = path.join(process.cwd(), "tmp");
+  const dirPath = path.join(baseTmpDir, dirName);
   await fs.mkdir(dirPath, { recursive: true });
   return dirPath;
 }
@@ -137,22 +140,35 @@ function normalizeOutput(output: string): string {
  * - Java: compiles `Main.java` then runs `java -cp <tmpDir> Main`.
  * - Python: runs `python3 <tmpDir>/solution.py` (no compilation).
  */
+/**
+ * Writes code to disk and returns a command to execute it via ISOLATED DOCKER CONTAINERS.
+ *
+ * Security improvements:
+ * - Uses `docker run` instead of native host compilers.
+ * - `--rm`: Cleans up the container immediately after exit.
+ * - `--network=none`: Completely disables internet access (prevents malicious requests/data exfiltration).
+ * - `--memory=256m`: Caps the RAM the user code can consume, preventing OOM crashes on the host.
+ * - `-i`: Keeps STDIN open so we can pipe the testcases into it.
+ */
 async function prepareCode(
   tmpDir: string,
   language: string,
   code: string
 ): Promise<{ runCommand: string; args: string[]; compilationError?: string }> {
+  
+  // Ensure the temp directory is accessible by the Docker daemon
+  await fs.chmod(tmpDir, 0o777);
+
   if (language === "cpp") {
     const sourceFile = path.join(tmpDir, "solution.cpp");
-    const binaryFile = path.join(tmpDir, "solution");
     await fs.writeFile(sourceFile, code);
 
-    // On macOS CI/dev environments, `c++` is commonly available. Elsewhere use `g++`.
-    const compiler = os.platform() === "darwin" ? "c++" : "g++";
     try {
-      await execAsync(`"${compiler}" -o "${binaryFile}" "${sourceFile}" -std=c++17 -O2`, {
-        timeout: 10_000,
-      });
+      // Compile using the official gcc image
+      await execAsync(
+        `docker run --rm -v "${tmpDir}:/app" -w /app gcc:11.4 g++ -o solution solution.cpp -std=c++17 -O2`,
+        { timeout: 10_000 }
+      );
     } catch (err: any) {
       return {
         runCommand: "",
@@ -160,7 +176,11 @@ async function prepareCode(
         compilationError: err.stderr?.toString() || err.message || "Compilation failed",
       };
     }
-    return { runCommand: binaryFile, args: [] };
+    // Execution command via a lightweight ubuntu image
+    return {
+      runCommand: "docker",
+      args: ["run", "--rm", "-i", "--memory=256m", "--network=none", "-v", `${tmpDir}:/app`, "-w", "/app", "ubuntu:22.04", "./solution"],
+    };
   }
 
   if (language === "java") {
@@ -168,7 +188,11 @@ async function prepareCode(
     await fs.writeFile(sourceFile, code);
 
     try {
-      await execAsync(`javac "${sourceFile}"`, { timeout: 10_000 });
+      // Compile using the eclipse-temurin image (openjdk is deprecated/missing arm64 support)
+      await execAsync(
+        `docker run --rm -v "${tmpDir}:/app" -w /app eclipse-temurin:17-jdk-jammy javac Main.java`,
+        { timeout: 10_000 }
+      );
     } catch (err: any) {
       return {
         runCommand: "",
@@ -176,14 +200,21 @@ async function prepareCode(
         compilationError: err.stderr?.toString() || err.message || "Compilation failed",
       };
     }
-    return { runCommand: "java", args: ["-cp", tmpDir, "Main"] };
+    return {
+      runCommand: "docker",
+      args: ["run", "--rm", "-i", "--memory=256m", "--network=none", "-v", `${tmpDir}:/app`, "-w", "/app", "eclipse-temurin:17-jdk-jammy", "java", "Main"],
+    };
   }
 
   if (language === "python") {
     const sourceFile = path.join(tmpDir, "solution.py");
     await fs.writeFile(sourceFile, code);
-    const pythonCmd = os.platform() === "win32" ? "python" : "python3";
-    return { runCommand: pythonCmd, args: [sourceFile] };
+    
+    // Python doesn't need compilation, just return the docker execution command
+    return {
+      runCommand: "docker",
+      args: ["run", "--rm", "-i", "--memory=256m", "--network=none", "-v", `${tmpDir}:/app`, "-w", "/app", "python:3.10-slim", "python", "solution.py"],
+    };
   }
 
   return { runCommand: "", args: [], compilationError: "Unsupported language" };
