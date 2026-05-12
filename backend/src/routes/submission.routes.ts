@@ -1,5 +1,8 @@
 import { Router, Request, Response } from "express";
+import { isValidObjectId } from "mongoose";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
+
+const MAX_CODE_LENGTH = 65_536; // 64 KB
 import AdmZip from "adm-zip";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { executeCode, type TestCaseInput } from "../services/codeExecutor.js";
@@ -99,17 +102,23 @@ router.post("/", async (req: Request, res: Response) => {
     const { questionId, language, code } = req.body;
 
     if (!questionId || !language || !code) {
-      res
-        .status(400)
-        .json({ error: "questionId, language, and code are required" });
+      res.status(400).json({ error: "questionId, language, and code are required" });
+      return;
+    }
+
+    if (!isValidObjectId(questionId)) {
+      res.status(400).json({ error: "Invalid questionId" });
       return;
     }
 
     const validLanguages = ["cpp", "java", "python"];
     if (!validLanguages.includes(language)) {
-      res
-        .status(400)
-        .json({ error: "language must be one of: cpp, java, python" });
+      res.status(400).json({ error: "language must be one of: cpp, java, python" });
+      return;
+    }
+
+    if (typeof code !== "string" || code.length > MAX_CODE_LENGTH) {
+      res.status(400).json({ error: `Code too long (max ${MAX_CODE_LENGTH} characters)` });
       return;
     }
 

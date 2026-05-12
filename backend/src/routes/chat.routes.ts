@@ -10,17 +10,27 @@ const router = Router();
 // POST /api/chat
 // Body: { message: string, questionId: string, sessionId: string }
 // Response: text/event-stream (SSE)
+const MAX_MESSAGE_LENGTH = 2_000;
+
 router.post("/", requireAuth, async (req: Request, res: Response) => {
   const { message, questionId, sessionId, language } = req.body;
 
-  // Validate inputs
   if (!message || !questionId || !sessionId) {
     res.status(400).json({ error: "message, questionId, and sessionId are required" });
     return;
   }
 
+  if (typeof message !== "string" || message.length > MAX_MESSAGE_LENGTH) {
+    res.status(400).json({ error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters)` });
+    return;
+  }
+
+  // Scope the session to the authenticated user so no user can read or write
+  // another user's chat history by guessing a sessionId.
+  const scopedSessionId = `${req.user!.id}:${sessionId}`;
+
   // Get or create session
-  let session = getSession(sessionId);
+  let session = getSession(scopedSessionId);
   if (!session) {
     // Fetch question details to provide context
     const question = await Question.findById(questionId);
@@ -29,7 +39,7 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    session = createSession(sessionId, {
+    session = createSession(scopedSessionId, {
       title: question.title,
       description: question.description,
       constraints: question.constraints,
@@ -48,9 +58,9 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
 
   try {
     // Add user message to history
-    appendMessage(sessionId, new HumanMessage(message));
+    appendMessage(scopedSessionId, new HumanMessage(message));
 
-    console.log(`[Chat] Starting AI stream for question: ${questionId} (session: ${sessionId})`);
+    console.log(`[Chat] Starting AI stream for question: ${questionId} (session: ${scopedSessionId})`);
 
     // Stream the response
     let fullResponse = "";
@@ -61,15 +71,15 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
     }
 
     // Add assistant response to history
-    appendMessage(sessionId, new AIMessage(fullResponse));
+    appendMessage(scopedSessionId, new AIMessage(fullResponse));
 
-    console.log(`[Chat] Stream completed successfully for session: ${sessionId}`);
+    console.log(`[Chat] Stream completed successfully for session: ${scopedSessionId}`);
 
     // Signal end of stream
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (error) {
-    console.error(`[Chat] Error during stream for session ${sessionId}:`, error);
+    console.error(`[Chat] Error during stream for session ${scopedSessionId}:`, error);
     res.write(`data: ${JSON.stringify({ error: "Failed to generate response" })}\n\n`);
     res.end();
   }

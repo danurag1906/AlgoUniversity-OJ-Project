@@ -1,7 +1,6 @@
 import { exec, spawn } from "child_process";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
 import crypto from "crypto";
 import util from "util";
 
@@ -15,6 +14,10 @@ const execAsync = util.promisify(exec);
 // If a program runs longer than this (infinite loop, heavy computation),
 // we kill the process and mark the testcase as TLE.
 const TIME_LIMIT_MS = 5_000; // 5 seconds per testcase
+
+// Cap stdout collected from user programs.
+// Without this, a program that prints in a loop could exhaust server memory.
+const MAX_OUTPUT_BYTES = 1 * 1024 * 1024; // 1 MB
 
 /**
  * Input for a single testcase.
@@ -179,7 +182,7 @@ async function prepareCode(
     // Execution command via a lightweight ubuntu image
     return {
       runCommand: "docker",
-      args: ["run", "--rm", "-i", "--memory=256m", "--network=none", "-v", `${tmpDir}:/app`, "-w", "/app", "ubuntu:22.04", "./solution"],
+      args: ["run", "--rm", "-i", "--memory=256m", "--cpus=1", "--pids-limit=50", "--network=none", "-v", `${tmpDir}:/app`, "-w", "/app", "ubuntu:22.04", "./solution"],
     };
   }
 
@@ -202,7 +205,7 @@ async function prepareCode(
     }
     return {
       runCommand: "docker",
-      args: ["run", "--rm", "-i", "--memory=256m", "--network=none", "-v", `${tmpDir}:/app`, "-w", "/app", "eclipse-temurin:17-jdk-jammy", "java", "Main"],
+      args: ["run", "--rm", "-i", "--memory=256m", "--cpus=1", "--pids-limit=50", "--network=none", "-v", `${tmpDir}:/app`, "-w", "/app", "eclipse-temurin:17-jdk-jammy", "java", "Main"],
     };
   }
 
@@ -213,7 +216,7 @@ async function prepareCode(
     // Python doesn't need compilation, just return the docker execution command
     return {
       runCommand: "docker",
-      args: ["run", "--rm", "-i", "--memory=256m", "--network=none", "-v", `${tmpDir}:/app`, "-w", "/app", "python:3.10-slim", "python", "solution.py"],
+      args: ["run", "--rm", "-i", "--memory=256m", "--cpus=1", "--pids-limit=50", "--network=none", "-v", `${tmpDir}:/app`, "-w", "/app", "python:3.10-slim", "python", "solution.py"],
     };
   }
 
@@ -278,7 +281,11 @@ function runSingleTestCaseAsync(
     }, TIME_LIMIT_MS);
 
     process.stdout.on("data", (data) => {
-      stdout += data.toString();
+      // Stop accumulating once we hit the cap — prevents OOM from programs
+      // that print output in an infinite loop.
+      if (stdout.length < MAX_OUTPUT_BYTES) {
+        stdout += data.toString();
+      }
     });
 
     process.stderr.on("data", (data) => {
