@@ -180,8 +180,13 @@ router.post(
 
       const s3 = getS3Client();
       const bucket = getS3Bucket();
-      // Deterministic key structure: groups testcases by question id.
-      const key = `testcases/${question._id}/${req.file.originalname}`;
+      // Sanitize the filename before using it as an S3 key.
+      // req.file.originalname is user-controlled and could contain path traversal
+      // characters (e.g. "../../../etc/passwd") or other unexpected sequences.
+      const safeFileName = req.file.originalname
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+        .slice(0, 100);
+      const key = `testcases/${question._id}/${safeFileName}`;
 
       // Delete old test case file from S3 if it exists
       if (question.s3TestCaseKey) {

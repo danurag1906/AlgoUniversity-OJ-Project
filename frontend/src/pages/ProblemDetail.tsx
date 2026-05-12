@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import Editor from "@monaco-editor/react";
 import { useSession } from "@/lib/auth-client";
 import {
@@ -263,9 +265,9 @@ export default function ProblemDetail() {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <p className="whitespace-pre-wrap leading-relaxed">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {question.description}
-                      </p>
+                      </ReactMarkdown>
                     </div>
                   </CardContent>
                 </Card>
