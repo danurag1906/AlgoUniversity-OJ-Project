@@ -1,6 +1,7 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useSession } from "@/lib/auth-client";
 import Navbar from "@/components/Navbar";
+import Landing from "@/pages/Landing";
 import SignIn from "@/pages/SignIn";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import UserDashboard from "@/pages/user/Dashboard";
@@ -40,10 +41,12 @@ function ProtectedRoute({
 
 export default function App() {
   const { data: session } = useSession();
+  const location = useLocation();
+  const isLanding = location.pathname === "/";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Navbar />
+      {!isLanding && <Navbar />}
       <Routes>
         <Route path="/signin" element={<SignIn />} />
 
@@ -69,7 +72,7 @@ export default function App() {
           }
         />
 
-        {/* Root redirect */}
+        {/* Root: landing for guests, dashboard for signed-in users */}
         <Route
           path="/"
           element={
@@ -79,7 +82,7 @@ export default function App() {
                 replace
               />
             ) : (
-              <Navigate to="/problems" replace />
+              <Landing />
             )
           }
         />
