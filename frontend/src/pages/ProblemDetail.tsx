@@ -137,7 +137,7 @@ export default function ProblemDetail() {
 
   // Run against sample test case only
   const handleRun = async () => {
-    if (!id || !session) return;
+    if (!id) return;
     setRunning(true);
     setExecutionResult(null);
     setErrorMessage(null);
@@ -390,47 +390,43 @@ export default function ProblemDetail() {
               </Select>
 
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleRun}
+                  disabled={isProcessing || !code.trim()}
+                  className="min-w-[80px]"
+                  id="run-code-btn"
+                >
+                  {running ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                      Running
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      ▶ Run
+                    </span>
+                  )}
+                </Button>
                 {session ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={handleRun}
-                      disabled={isProcessing || !code.trim()}
-                      className="min-w-[80px]"
-                      id="run-code-btn"
-                    >
-                      {running ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                          Running
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1.5">
-                          ▶ Run
-                        </span>
-                      )}
-                    </Button>
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={isProcessing || !code.trim()}
-                      className="min-w-[100px]"
-                      id="submit-code-btn"
-                    >
-                      {submitting ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                          Submitting
-                        </span>
-                      ) : (
-                        "Submit"
-                      )}
-                    </Button>
-                  </>
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={isProcessing || !code.trim()}
+                    className="min-w-[100px]"
+                    id="submit-code-btn"
+                  >
+                    {submitting ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                        Submitting
+                      </span>
+                    ) : (
+                      "Submit"
+                    )}
+                  </Button>
                 ) : (
                   <Link to="/signin">
-                    <Button id="signin-to-submit-btn">
-                      Sign In to Submit
-                    </Button>
+                    <Button id="signin-to-submit-btn">Sign In to Submit</Button>
                   </Link>
                 )}
               </div>
@@ -481,14 +477,13 @@ export default function ProblemDetail() {
               <Card className="bg-muted/30">
                 <CardContent className="py-4 text-center">
                   <p className="text-sm text-muted-foreground">
-                    You can view the problem and write code, but{" "}
                     <Link
                       to="/signin"
                       className="text-primary font-medium hover:underline"
                     >
-                      sign in
+                      Sign in
                     </Link>{" "}
-                    to run and submit your solution.
+                    to submit your solution and track your progress.
                   </p>
                 </CardContent>
               </Card>
