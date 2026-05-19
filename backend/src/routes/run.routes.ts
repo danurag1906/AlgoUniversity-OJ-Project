@@ -1,15 +1,11 @@
 import { Router, Request, Response } from "express";
 import mongoose from "mongoose";
-import { requireAuth } from "../middleware/requireAuth.js";
 import { executeCode, type TestCaseInput } from "../services/codeExecutor.js";
 import Question from "../models/Question.js";
 
 const MAX_CODE_LENGTH = 65_536; // 64 KB — plenty for competitive programming
 
 const router = Router();
-
-// All run routes require authentication
-router.use(requireAuth);
 
 // POST /api/run — Run code against sample test case only
 // Example:
