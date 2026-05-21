@@ -176,15 +176,16 @@ export interface RunResponse {
   result: ExecutionResult;
 }
 
-// Run code against sample test case only (quick feedback)
+// Run code against sample test case or a custom input (no login required)
 export async function runCode(
   questionId: string,
   language: string,
-  code: string
+  code: string,
+  customInput?: string
 ): Promise<RunResponse> {
   const res = await apiFetch("/api/run", {
     method: "POST",
-    body: JSON.stringify({ questionId, language, code }),
+    body: JSON.stringify({ questionId, language, code, customInput }),
   });
   if (!res.ok) {
     const data = await res.json();

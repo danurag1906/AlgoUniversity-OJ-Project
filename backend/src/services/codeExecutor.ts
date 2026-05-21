@@ -13,7 +13,10 @@ const execAsync = util.promisify(exec);
 // Hard per-testcase timeout.
 // If a program runs longer than this (infinite loop, heavy computation),
 // we kill the process and mark the testcase as TLE.
-const TIME_LIMIT_MS = 5_000; // 5 seconds per testcase
+// On slower machines (e.g. EC2 t3.micro) Docker container startup alone takes
+// 1-3 seconds, so the effective code runtime with a 5s limit is only 2-4s.
+// Set TIME_LIMIT_MS in your .env to raise this on production without changing code.
+const TIME_LIMIT_MS = parseInt(process.env.TIME_LIMIT_MS || "5000", 10);
 
 // Cap stdout collected from user programs.
 // Without this, a program that prints in a loop could exhaust server memory.

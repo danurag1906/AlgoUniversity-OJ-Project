@@ -98,8 +98,10 @@ export default function ProblemDetail() {
   const [activeTab, setActiveTab] = useState("description");
   const [executionResult, setExecutionResult] =
     useState<ExecutionResult | null>(null);
-  const [resultMode, setResultMode] = useState<"run" | "submit" | null>(null);
+  const [resultMode, setResultMode] = useState<"run" | "submit" | "custom" | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [testCaseMode, setTestCaseMode] = useState<"sample" | "custom">("sample");
+  const [customInput, setCustomInput] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -135,15 +137,20 @@ export default function ProblemDetail() {
     setCode(LANGUAGE_MAP[newLang].defaultCode);
   };
 
-  // Run against sample test case only
+  // Run against sample test case or custom input
   const handleRun = async () => {
     if (!id) return;
     setRunning(true);
     setExecutionResult(null);
     setErrorMessage(null);
-    setResultMode("run");
+    setResultMode(testCaseMode === "custom" ? "custom" : "run");
     try {
-      const response = await runCode(id, language, code);
+      const response = await runCode(
+        id,
+        language,
+        code,
+        testCaseMode === "custom" ? customInput : undefined
+      );
       setExecutionResult(response.result);
     } catch (error) {
       setErrorMessage(
@@ -462,6 +469,52 @@ export default function ProblemDetail() {
               </div>
             </Card>
 
+            {/* Test Case Panel */}
+            <Card className="overflow-hidden">
+              <div className="flex items-center justify-between border-b px-4 py-2 bg-muted/50">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Test Case Input
+                </span>
+                <div className="flex items-center gap-0.5 rounded-md border bg-background p-0.5">
+                  <button
+                    onClick={() => setTestCaseMode("sample")}
+                    className={`rounded px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                      testCaseMode === "sample"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Sample
+                  </button>
+                  <button
+                    onClick={() => setTestCaseMode("custom")}
+                    className={`rounded px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                      testCaseMode === "custom"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+              <CardContent className="p-3">
+                {testCaseMode === "sample" ? (
+                  <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap min-h-[60px]">
+                    {question.sampleInput || "(no sample input)"}
+                  </pre>
+                ) : (
+                  <textarea
+                    value={customInput}
+                    onChange={(e) => setCustomInput(e.target.value)}
+                    placeholder="Enter your custom input here..."
+                    className="w-full min-h-[60px] resize-y text-xs font-mono bg-transparent text-foreground placeholder:text-muted-foreground outline-none"
+                    spellCheck={false}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
             {/* Results Panel */}
             <ResultsPanel
               executionResult={executionResult}
@@ -504,7 +557,7 @@ function ResultsPanel({
   isProcessing,
 }: {
   executionResult: ExecutionResult | null;
-  resultMode: "run" | "submit" | null;
+  resultMode: "run" | "submit" | "custom" | null;
   errorMessage: string | null;
   isProcessing: boolean;
 }) {
@@ -516,9 +569,9 @@ function ResultsPanel({
           <div className="flex items-center justify-center gap-3">
             <span className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
             <span className="text-sm text-muted-foreground">
-              {resultMode === "run"
-                ? "Running against sample test case..."
-                : "Running against all test cases..."}
+              {resultMode === "submit"
+                ? "Running against all test cases..."
+                : "Running your code..."}
             </span>
           </div>
         </CardContent>
@@ -543,6 +596,62 @@ function ResultsPanel({
   // No result yet
   if (!executionResult) return null;
 
+  // ── Custom run: just show the output, no pass/fail verdict ──────────────
+  if (resultMode === "custom") {
+    const tc = executionResult.testCases[0];
+    return (
+      <Card>
+        <CardContent className="py-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">Custom Run</Badge>
+          </div>
+
+          {executionResult.compilationError && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">
+                Compilation Error
+              </p>
+              <pre className="bg-rose-500/5 border border-rose-500/20 rounded-md px-3 py-2 text-xs font-mono text-rose-600 overflow-x-auto max-h-40 overflow-y-auto">
+                {executionResult.compilationError}
+              </pre>
+            </div>
+          )}
+
+          {tc && (
+            <>
+              {tc.status === "Time Limit Exceeded" && (
+                <p className="text-sm font-medium text-amber-600">
+                  Time Limit Exceeded — check for infinite loops.
+                </p>
+              )}
+              {tc.status === "Runtime Error" && tc.error && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">
+                    Runtime Error
+                  </p>
+                  <pre className="bg-rose-500/5 border border-rose-500/20 rounded-md px-3 py-2 text-xs font-mono text-rose-600 overflow-x-auto max-h-32 overflow-y-auto">
+                    {tc.error}
+                  </pre>
+                </div>
+              )}
+              {tc.status !== "Time Limit Exceeded" && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Output
+                  </p>
+                  <pre className="bg-muted rounded-md px-3 py-2 text-xs font-mono overflow-x-auto max-h-48 overflow-y-auto">
+                    {tc.actualOutput || "(no output)"}
+                  </pre>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Sample run / submission ──────────────────────────────────────────────
   const isAccepted = executionResult.overallStatus === "Accepted";
   const statusColor = isAccepted ? "text-emerald-600" : "text-rose-600";
   const borderColor = isAccepted ? "border-emerald-500/30" : "border-rose-500/30";
@@ -606,7 +715,7 @@ function TestCaseCard({
     status: string;
     error?: string;
   };
-  resultMode: "run" | "submit" | null;
+  resultMode: "run" | "submit" | "custom" | null;
 }) {
   const [expanded, setExpanded] = useState(
     // Auto-expand if it's a run (only 1 test case) or if it failed

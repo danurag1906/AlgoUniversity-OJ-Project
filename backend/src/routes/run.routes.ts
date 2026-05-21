@@ -14,7 +14,7 @@ const router = Router();
 //   --data '{"questionId":"...","language":"python","code":"print(input())"}'
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const { questionId, language, code } = req.body;
+    const { questionId, language, code, customInput } = req.body;
 
     if (!questionId || !language || !code) {
       res.status(400).json({ error: "questionId, language, and code are required" });
@@ -37,28 +37,37 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
-    // Fetch the question to get sample test case
+    if (customInput !== undefined && typeof customInput !== "string") {
+      res.status(400).json({ error: "customInput must be a string" });
+      return;
+    }
+
+    // Fetch the question to confirm it exists
     const question = await Question.findById(questionId);
     if (!question) {
       res.status(404).json({ error: "Question not found" });
       return;
     }
 
-    if (!question.sampleInput && !question.sampleOutput) {
-      res.status(400).json({ error: "No sample test case available" });
-      return;
+    let testCases: TestCaseInput[];
+
+    if (typeof customInput === "string") {
+      // Custom run: use the user-supplied input; no expected output to compare against
+      testCases = [{ input: customInput, expectedOutput: "" }];
+    } else {
+      // Sample run: use the question's sample input/output
+      if (!question.sampleInput && !question.sampleOutput) {
+        res.status(400).json({ error: "No sample test case available" });
+        return;
+      }
+      testCases = [
+        {
+          input: question.sampleInput || "",
+          expectedOutput: question.sampleOutput || "",
+        },
+      ];
     }
 
-    // Build the test case from sample input/output
-    const testCases: TestCaseInput[] = [
-      {
-        input: question.sampleInput || "",
-        expectedOutput: question.sampleOutput || "",
-      },
-    ];
-
-    // Execute the code
-    // This runs code locally using OS child processes (see `src/services/codeExecutor.ts`).
     const result = await executeCode(language, code, testCases);
 
     res.json({ result });
