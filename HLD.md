@@ -12,12 +12,11 @@
 2. [Architecture Diagram](#2-architecture-diagram)
 3. [Component Breakdown](#3-component-breakdown)
 4. [Request Flow Diagrams](#4-request-flow-diagrams)
-5. [Database Design](#5-database-design)
-6. [API Overview](#6-api-overview)
-7. [Security Architecture](#7-security-architecture)
-8. [Infrastructure & Deployment](#8-infrastructure--deployment)
-9. [Technology Stack](#9-technology-stack)
-10. [Known Limitations & Future Scope](#10-known-limitations--future-scope)
+5. [API Overview](#5-api-overview)
+6. [Security Architecture](#6-security-architecture)
+7. [Infrastructure & Deployment](#7-infrastructure--deployment)
+8. [Technology Stack](#8-technology-stack)
+9. [Known Limitations & Future Scope](#9-known-limitations--future-scope)
 
 ---
 
@@ -31,6 +30,7 @@ AlgoUniversity OJ is a full-stack **Online Judge (OJ)** platform that allows use
 |---|---|
 | Problem Browsing | Users browse and filter DSA problems by difficulty and tags |
 | Code Execution | Run code (C++, Java, Python) against a sample test case in real time |
+| Custom Test Case | Run code against any user-supplied input without signing in |
 | Submission Judging | Submit code for evaluation against all hidden test cases |
 | Admin Dashboard | Admins create problems and upload test case ZIPs |
 | AI Hints | Per-problem AI chat assistant powered by Gemini |
@@ -114,7 +114,7 @@ graph TB
 |---|---|---|
 | `/api/auth/*` | OAuth sign-in / session management | No |
 | `/api/questions` | Browse & search problems | No |
-| `/api/run` | Run code against sample input | Yes (user) |
+| `/api/run` | Run code against sample or custom input | No |
 | `/api/submissions` | Submit code + fetch history | Yes (user) |
 | `/api/chat` | AI hint chat per problem | Yes (user) |
 | `/api/admin` | Create / delete questions, upload ZIPs | Yes (admin) |
@@ -237,7 +237,7 @@ sequenceDiagram
 
 ---
 
-### 4.3 Sample Run Flow
+### 4.3 Sample Run / Custom Test Case Flow
 
 ```mermaid
 sequenceDiagram
@@ -245,12 +245,16 @@ sequenceDiagram
     participant BE as Backend
     participant D as Docker
 
-    U->>BE: POST /api/run {questionId, language, code}
-    BE->>BE: Validate: auth, code size ≤ 64KB
-    BE->>BE: Fetch sampleInput from MongoDB
-    BE->>D: docker run [sandbox] < sampleInput
+    U->>BE: POST /api/run {questionId, language, code, customInput?}
+    BE->>BE: Validate: code size ≤ 64KB (no auth required)
+    alt customInput provided
+        BE->>BE: Use customInput as test input (no expected output comparison)
+    else no customInput
+        BE->>BE: Fetch sampleInput / sampleOutput from MongoDB
+    end
+    BE->>D: docker run [sandbox] < input
     D-->>BE: stdout / stderr
-    BE-->>U: {result: passed/failed, actualOutput, expectedOutput}
+    BE-->>U: {result: actualOutput, status}
 ```
 
 ---
@@ -275,54 +279,7 @@ sequenceDiagram
 
 ---
 
-## 5. Database Design
-
-### MongoDB Collections
-
-#### `question`
-
-| Field | Type | Description |
-|---|---|---|
-| `_id` | ObjectId | Primary key |
-| `title` | String | Problem title (unique) |
-| `description` | String | Markdown problem statement |
-| `difficulty` | Enum | Easy / Medium / Hard |
-| `tags` | String[] | e.g. ["Array", "Greedy"] |
-| `sampleInput` | String | Shown on problem page |
-| `sampleOutput` | String | Shown on problem page |
-| `constraints` | String | Constraint text |
-| `s3TestCaseKey` | String | S3 object key for test ZIP |
-| `testCaseFileName` | String | Original ZIP filename |
-| `createdBy` | String | Admin user ID |
-| `createdAt` | Date | Auto-set |
-| `updatedAt` | Date | Auto-set |
-
-#### `submission`
-
-| Field | Type | Description |
-|---|---|---|
-| `_id` | ObjectId | Primary key |
-| `userId` | String | Submitting user ID |
-| `questionId` | ObjectId | Ref → question |
-| `language` | Enum | cpp / java / python |
-| `code` | String | User's code (≤ 64KB) |
-| `status` | Enum | Accepted / Wrong Answer / TLE / RE / CE |
-| `createdAt` | Date | Auto-set |
-
-#### `user` *(managed by better-auth)*
-
-| Field | Type | Description |
-|---|---|---|
-| `_id` | ObjectId | Primary key |
-| `email` | String | Google email |
-| `name` | String | Display name |
-| `image` | String | Avatar URL |
-| `role` | Enum | user / admin |
-| `createdAt` | Date | Auto-set |
-
----
-
-## 6. API Overview
+## 5. API Overview
 
 ### Public Endpoints
 
@@ -331,12 +288,12 @@ sequenceDiagram
 | GET | `/api/health` | Health check |
 | GET | `/api/questions` | List questions (filter by difficulty, tag, search) |
 | GET | `/api/questions/:id` | Get single question |
+| POST | `/api/run` | Run code against sample input or a custom input (`customInput?`) |
 
 ### Authenticated Endpoints (User)
 
 | Method | Route | Description |
 |---|---|---|
-| POST | `/api/run` | Run code against sample input |
 | POST | `/api/submissions` | Submit code for judging |
 | GET | `/api/submissions?questionId=` | Get my submissions for a problem |
 | GET | `/api/user/me` | Get current user profile |
@@ -354,7 +311,7 @@ sequenceDiagram
 
 ---
 
-## 7. Security Architecture
+## 6. Security Architecture
 
 ### Authentication & Authorization
 
@@ -386,7 +343,7 @@ graph LR
 
 ---
 
-## 8. Infrastructure & Deployment
+## 7. Infrastructure & Deployment
 
 ```mermaid
 graph TB
@@ -433,7 +390,7 @@ graph TB
 
 ---
 
-## 9. Technology Stack
+## 8. Technology Stack
 
 | Category | Technology |
 |---|---|
@@ -453,7 +410,7 @@ graph TB
 
 ---
 
-## 10. Known Limitations & Future Scope
+## 9. Known Limitations & Future Scope
 
 ### Current Limitations
 
