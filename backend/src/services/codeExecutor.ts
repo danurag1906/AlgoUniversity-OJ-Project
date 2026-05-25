@@ -18,6 +18,12 @@ const execAsync = util.promisify(exec);
 // Set TIME_LIMIT_MS in your .env to raise this on production without changing code.
 const TIME_LIMIT_MS = parseInt(process.env.TIME_LIMIT_MS || "5000", 10);
 
+// Timeout for the compilation step (C++ g++, Java javac) run inside Docker.
+// Java needs JVM startup + javac; C++ needs gcc to start. On a t3.micro with
+// depleted CPU credits this can easily exceed 10s even with images cached.
+// Set COMPILE_TIMEOUT_MS in your .env — recommended 30000 on EC2 t3.micro.
+const COMPILE_TIMEOUT_MS = parseInt(process.env.COMPILE_TIMEOUT_MS || "30000", 10);
+
 // Cap stdout collected from user programs.
 // Without this, a program that prints in a loop could exhaust server memory.
 const MAX_OUTPUT_BYTES = 1 * 1024 * 1024; // 1 MB
@@ -173,13 +179,17 @@ async function prepareCode(
       // Compile using the official gcc image
       await execAsync(
         `docker run --rm -v "${tmpDir}:/app" -w /app gcc:11.4 g++ -o solution solution.cpp -std=c++17 -O2`,
-        { timeout: 10_000 }
+        { timeout: COMPILE_TIMEOUT_MS }
       );
     } catch (err: any) {
+      // Use stderr if the compiler produced output (i.e. actual code errors).
+      // Fall back to a generic message — never expose err.message because it
+      // contains the full docker command with server file paths.
+      const stderr = err.stderr?.toString().trim();
       return {
         runCommand: "",
         args: [],
-        compilationError: err.stderr?.toString() || err.message || "Compilation failed",
+        compilationError: stderr || "Compilation failed. Check your code and try again.",
       };
     }
     // Execution command via a lightweight ubuntu image
@@ -197,13 +207,14 @@ async function prepareCode(
       // Compile using the eclipse-temurin image (openjdk is deprecated/missing arm64 support)
       await execAsync(
         `docker run --rm -v "${tmpDir}:/app" -w /app eclipse-temurin:17-jdk-jammy javac Main.java`,
-        { timeout: 10_000 }
+        { timeout: COMPILE_TIMEOUT_MS }
       );
     } catch (err: any) {
+      const stderr = err.stderr?.toString().trim();
       return {
         runCommand: "",
         args: [],
-        compilationError: err.stderr?.toString() || err.message || "Compilation failed",
+        compilationError: stderr || "Compilation failed. Check your code and try again.",
       };
     }
     return {

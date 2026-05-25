@@ -34,8 +34,6 @@ export interface Question {
   sampleInput: string;
   sampleOutput: string;
   constraints: string;
-  testCaseFileName: string;
-  createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -142,8 +140,10 @@ export async function uploadTestCases(questionId: string, file: File): Promise<v
 export interface TestCaseResult {
   testCase: number;
   passed: boolean;
-  input: string;
-  expectedOutput: string;
+  // Present only for sample runs (/api/run). Stripped from submission responses
+  // to prevent hidden test case exposure.
+  input?: string;
+  expectedOutput?: string;
   actualOutput: string;
   status: string;
   error?: string;
@@ -160,11 +160,13 @@ export interface ExecutionResult {
 export interface Submission {
   _id: string;
   questionId: string;
-  userId: string;
   language: "cpp" | "java" | "python";
-  code: string;
   status: string;
   createdAt: string;
+  // Present in submission history (GET /me) but stripped from the submit response
+  // (POST /api/submissions) to avoid sending the full code back over the wire.
+  userId?: string;
+  code?: string;
 }
 
 export interface SubmitResponse {
