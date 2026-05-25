@@ -63,7 +63,8 @@ router.get("/:id", async (req: Request, res: Response) => {
       return;
     }
 
-    const question = await Question.findById(req.params.id).select("-s3TestCaseKey");
+    const question = await Question.findById(req.params.id)
+      .select("-s3TestCaseKey -testCaseFileName -createdBy -__v");
 
     if (!question) {
       res.status(404).json({ error: "Question not found" });

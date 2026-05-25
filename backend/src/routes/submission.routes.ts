@@ -167,9 +167,27 @@ router.post("/", async (req: Request, res: Response) => {
       status: executionResult.overallStatus,
     });
 
+    // Strip hidden test case data (input + expectedOutput) before sending to client.
+    // Returning raw inputs/outputs would let any logged-in user extract all hidden
+    // test cases simply by submitting code.
+    const safeResult = {
+      ...executionResult,
+      testCases: executionResult.testCases.map(({ input, expectedOutput, ...safe }) => safe),
+    };
+
+    // Return only the fields the frontend needs — omit code, userId, and __v.
+    // The full code is already in the editor; re-sending it bloats every response.
+    const submissionSafe = {
+      _id: submission._id,
+      questionId: submission.questionId,
+      language: submission.language,
+      status: submission.status,
+      createdAt: submission.createdAt,
+    };
+
     res.status(201).json({
-      submission,
-      result: executionResult,
+      submission: submissionSafe,
+      result: safeResult,
     });
   } catch (error) {
     console.error("Error processing submission:", error);

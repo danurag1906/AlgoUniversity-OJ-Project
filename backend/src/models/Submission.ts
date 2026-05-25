@@ -14,7 +14,7 @@ export interface ISubmission extends Document {
   userId: string;
   language: "cpp" | "java" | "python";
   code: string;
-  status: "Pending" | "Accepted" | "Wrong Answer" | "Runtime Error" | "Time Limit Exceeded";
+  status: "Pending" | "Accepted" | "Wrong Answer" | "Runtime Error" | "Time Limit Exceeded" | "Compilation Error";
   createdAt: Date;
 }
 
@@ -40,7 +40,7 @@ const submissionSchema = new Schema<ISubmission>(
     },
     status: {
       type: String,
-      enum: ["Pending", "Accepted", "Wrong Answer", "Runtime Error", "Time Limit Exceeded"],
+      enum: ["Pending", "Accepted", "Wrong Answer", "Runtime Error", "Time Limit Exceeded", "Compilation Error"],
       default: "Pending",
     },
   },

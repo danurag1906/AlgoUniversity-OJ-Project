@@ -709,8 +709,8 @@ function TestCaseCard({
   tc: {
     testCase: number;
     passed: boolean;
-    input: string;
-    expectedOutput: string;
+    input?: string;
+    expectedOutput?: string;
     actualOutput: string;
     status: string;
     error?: string;
@@ -721,6 +721,9 @@ function TestCaseCard({
     // Auto-expand if it's a run (only 1 test case) or if it failed
     resultMode === "run" || !tc.passed
   );
+
+  // Input and expected output are only returned for sample runs, not submissions.
+  const showInputOutput = resultMode === "run" && tc.input !== undefined;
 
   return (
     <div
@@ -760,28 +763,32 @@ function TestCaseCard({
       {/* Expanded details */}
       {expanded && (
         <div className="px-3 pb-3 space-y-2 border-t">
-          {/* Input */}
-          <div className="mt-2">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Input
-            </p>
-            <pre className="bg-muted rounded px-2 py-1.5 text-xs font-mono overflow-x-auto max-h-24 overflow-y-auto">
-              {tc.input || "(empty)"}
-            </pre>
-          </div>
+          {/* Input — only available for sample runs */}
+          {showInputOutput && (
+            <div className="mt-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Input
+              </p>
+              <pre className="bg-muted rounded px-2 py-1.5 text-xs font-mono overflow-x-auto max-h-24 overflow-y-auto">
+                {tc.input || "(empty)"}
+              </pre>
+            </div>
+          )}
 
-          {/* Expected Output */}
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Expected Output
-            </p>
-            <pre className="bg-muted rounded px-2 py-1.5 text-xs font-mono overflow-x-auto max-h-24 overflow-y-auto">
-              {tc.expectedOutput || "(empty)"}
-            </pre>
-          </div>
+          {/* Expected Output — only available for sample runs */}
+          {showInputOutput && (
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Expected Output
+              </p>
+              <pre className="bg-muted rounded px-2 py-1.5 text-xs font-mono overflow-x-auto max-h-24 overflow-y-auto">
+                {tc.expectedOutput || "(empty)"}
+              </pre>
+            </div>
+          )}
 
           {/* Your Output */}
-          <div>
+          <div className={showInputOutput ? "" : "mt-2"}>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
               Your Output
             </p>
